@@ -134,23 +134,92 @@ stages:
                 --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=$(supabase-anon-key)
 
   - stage: Deploy
-    displayName: 'Deploy to Azure Web App'
+    displayName: 'Deploy to Azure Container Instances'
     dependsOn: DockerBuildPush
     condition: succeeded()
     jobs:
-      - deployment: DeployWebApp
-        displayName: 'Deploy to Azure Web App for Containers'
+      - deployment: DeployContainerInstances
+        displayName: 'Deploy to Azure Container Instances'
         environment: 'production'
         strategy:
           runOnce:
             deploy:
               steps:
-                - task: AzureWebAppContainer@1
-                  displayName: 'Deploy Docker Container to Web App'
+                - task: AzureKeyVault@2
+                  displayName: 'Get Secrets from Key Vault'
                   inputs:
                     azureSubscription: 'Azure subscription 1 (95c7aa64-5227-422a-afbd-e8eb5cb30122)'
-                    appName: 'cloud-notes-hub-prod-webapp'
-                    containers: '$(containerRegistry)/cloud-notes-hub:$(Build.BuildId)'
+                    KeyVaultName: 'cloud-notes-hubprodkv'
+                    SecretsFilter: 'supabase-url,supabase-anon-key,app-insights-connection-string'
+                    RunAsPreJob: false
+
+                - task: AzureCLI@2
+                  displayName: 'Deploy Main App Container Instance'
+                  inputs:
+                    azureSubscription: 'Azure subscription 1 (95c7aa64-5227-422a-afbd-e8eb5cb30122)'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      # Check if container group exists
+                      if az container show --resource-group cloud-notes-hub-prod-rg --name cloud-notes-hub-prod-app &>/dev/null; then
+                        echo "Deleting existing container group..."
+                        az container delete --resource-group cloud-notes-hub-prod-rg --name cloud-notes-hub-prod-app --yes
+                        echo "Waiting for deletion to complete..."
+                        sleep 30
+                      fi
+
+                      echo "Creating new container instance..."
+                      az container create \
+                        --resource-group cloud-notes-hub-prod-rg \
+                        --name cloud-notes-hub-prod-app \
+                        --image cloudnoteshubprodacr.azurecr.io/cloud-notes-hub:latest \
+                        --registry-login-server cloudnoteshubprodacr.azurecr.io \
+                        --registry-username cloudnoteshubprodacr \
+                        --registry-password $(az acr credential show --name cloudnoteshubprodacr --query "passwords[0].value" -o tsv) \
+                        --dns-name-label cloudnoteshubprodapp \
+                        --ports 3000 \
+                        --cpu 1 \
+                        --memory 1.5 \
+                        --environment-variables \
+                          NEXT_PUBLIC_SUPABASE_URL='$(supabase-url)' \
+                          NEXT_PUBLIC_SUPABASE_ANON_KEY='$(supabase-anon-key)' \
+                          APPLICATIONINSIGHTS_CONNECTION_STRING='$(app-insights-connection-string)' \
+                          NODE_ENV='production' \
+                        --restart-policy Always
+
+                      echo "Container instance created successfully!"
+                      echo "App URL: http://cloudnoteshubprodapp.eastus.azurecontainer.io:3000"
+
+                - task: AzureCLI@2
+                  displayName: 'Deploy Ansible Semaphore Container Instance'
+                  inputs:
+                    azureSubscription: 'Azure subscription 1 (95c7aa64-5227-422a-afbd-e8eb5cb30122)'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      # Check if container group exists
+                      if az container show --resource-group cloud-notes-hub-prod-rg --name cloud-notes-hub-prod-semaphore &>/dev/null; then
+                        echo "Semaphore container already exists, skipping..."
+                      else
+                        echo "Creating Semaphore container instance..."
+                        az container create \
+                          --resource-group cloud-notes-hub-prod-rg \
+                          --name cloud-notes-hub-prod-semaphore \
+                          --image semaphoreui/semaphore:latest \
+                          --dns-name-label cloudnoteshubprodsemaphore \
+                          --ports 3000 \
+                          --cpu 0.5 \
+                          --memory 1 \
+                          --environment-variables \
+                            SEMAPHORE_DB_DIALECT='bolt' \
+                            SEMAPHORE_ADMIN='admin' \
+                            SEMAPHORE_ADMIN_PASSWORD='changeme' \
+                            SEMAPHORE_ADMIN_NAME='Administrator' \
+                            SEMAPHORE_ADMIN_EMAIL='codecloudevops@outlook.com' \
+                          --restart-policy Always
+
+                        echo "Semaphore URL: http://cloudnoteshubprodsemaphore.eastus.azurecontainer.io:3000"
+                      fi
 
   - stage: LogDeployment
     displayName: 'Log Deployment'

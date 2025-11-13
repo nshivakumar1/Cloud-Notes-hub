@@ -263,89 +263,9 @@ resource "azurerm_container_registry" "main" {
   tags = local.common_tags
 }
 
-# App Service Plan (F1 Free tier)
-resource "azurerm_service_plan" "main" {
-  name                = "${local.resource_prefix}-asp"
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
-  os_type             = "Linux"
-  sku_name            = "F1" # Free tier
-
-  tags = local.common_tags
-}
-
-# Web App for Containers
-resource "azurerm_linux_web_app" "main" {
-  name                = "${local.resource_prefix}-webapp"
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
-  service_plan_id     = azurerm_service_plan.main.id
-
-  site_config {
-    always_on = false # F1 tier doesn't support always_on
-
-    application_stack {
-      docker_registry_url      = "https://${azurerm_container_registry.main.login_server}"
-      docker_registry_username = azurerm_container_registry.main.admin_username
-      docker_registry_password = azurerm_container_registry.main.admin_password
-      docker_image_name        = "cloud-notes-hub:latest"
-    }
-  }
-
-  app_settings = {
-    "WEBSITES_ENABLE_APP_SERVICE_STORAGE" = "false"
-    "DOCKER_REGISTRY_SERVER_URL"          = "https://${azurerm_container_registry.main.login_server}"
-    "DOCKER_REGISTRY_SERVER_USERNAME"     = azurerm_container_registry.main.admin_username
-    "DOCKER_REGISTRY_SERVER_PASSWORD"     = azurerm_container_registry.main.admin_password
-    "NEXT_PUBLIC_SUPABASE_URL"            = var.supabase_url
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY"       = var.supabase_anon_key
-    "APPLICATIONINSIGHTS_CONNECTION_STRING" = azurerm_application_insights.main.connection_string
-  }
-
-  identity {
-    type = "SystemAssigned"
-  }
-
-  tags = local.common_tags
-}
-
-# Azure Container Instance for Ansible Semaphore
-resource "azurerm_container_group" "semaphore" {
-  name                = "${local.resource_prefix}-semaphore"
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
-  os_type             = "Linux"
-  dns_name_label      = "${replace(local.resource_prefix, "-", "")}semaphore"
-  ip_address_type     = "Public"
-
-  container {
-    name   = "semaphore"
-    image  = "semaphoreui/semaphore:latest"
-    cpu    = "0.5"
-    memory = "1.0"
-
-    ports {
-      port     = 3000
-      protocol = "TCP"
-    }
-
-    environment_variables = {
-      "SEMAPHORE_DB_DIALECT" = "bolt"
-      "SEMAPHORE_ADMIN"      = "admin"
-      "SEMAPHORE_ADMIN_PASSWORD" = "changeme"
-      "SEMAPHORE_ADMIN_NAME" = "Administrator"
-      "SEMAPHORE_ADMIN_EMAIL" = var.alert_email
-    }
-
-    volume {
-      name       = "semaphore-data"
-      mount_path = "/etc/semaphore"
-      empty_dir  = true
-    }
-  }
-
-  tags = local.common_tags
-}
+# Note: Container Instances for the app and Semaphore will be created via Azure DevOps pipeline
+# Terraform creates the ACR and other infrastructure, but the containers themselves
+# are deployed by the pipeline after Docker images are built and pushed to ACR
 
 # Outputs
 output "resource_group_name" {
@@ -385,20 +305,7 @@ output "container_registry_admin_password" {
   sensitive   = true
 }
 
-output "web_app_name" {
-  description = "Name of the Web App"
-  value       = azurerm_linux_web_app.main.name
-}
-
-output "web_app_url" {
-  description = "Default hostname of the Web App"
-  value       = "https://${azurerm_linux_web_app.main.default_hostname}"
-}
-
-output "semaphore_url" {
-  description = "URL for Ansible Semaphore portal"
-  value       = "http://${azurerm_container_group.semaphore.fqdn}:3000"
-}
+# Container Instance outputs will be available after deployment via pipeline
 
 output "application_insights_instrumentation_key" {
   description = "Application Insights instrumentation key"
