@@ -61,6 +61,12 @@ variable "supabase_service_role_key" {
   sensitive   = true
 }
 
+variable "alert_email" {
+  description = "Email address for monitoring alerts"
+  type        = string
+  default     = "codecloudevops@outlook.com"
+}
+
 # Local variables
 locals {
   resource_prefix = "${var.project_name}-${var.environment}"
@@ -152,6 +158,100 @@ resource "azurerm_storage_container" "logs" {
   container_access_type = "private"
 }
 
+# Application Insights
+resource "azurerm_log_analytics_workspace" "main" {
+  name                = "${local.resource_prefix}-law"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+  sku                 = "PerGB2018"
+  retention_in_days   = 30
+
+  tags = local.common_tags
+}
+
+resource "azurerm_application_insights" "main" {
+  name                = "${local.resource_prefix}-ai"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+  workspace_id        = azurerm_log_analytics_workspace.main.id
+  application_type    = "web"
+
+  tags = local.common_tags
+}
+
+# Store Application Insights connection string in Key Vault
+resource "azurerm_key_vault_secret" "app_insights_connection_string" {
+  name         = "app-insights-connection-string"
+  value        = azurerm_application_insights.main.connection_string
+  key_vault_id = azurerm_key_vault.main.id
+  tags         = local.common_tags
+}
+
+# Action Group for Alerts
+resource "azurerm_monitor_action_group" "main" {
+  name                = "${local.resource_prefix}-action-group"
+  resource_group_name = azurerm_resource_group.main.name
+  short_name          = "cloudnotes"
+
+  email_receiver {
+    name          = "admin-email"
+    email_address = var.alert_email
+    use_common_alert_schema = true
+  }
+
+  tags = local.common_tags
+}
+
+# Alert: High Error Rate
+resource "azurerm_monitor_metric_alert" "error_rate" {
+  name                = "${local.resource_prefix}-high-error-rate"
+  resource_group_name = azurerm_resource_group.main.name
+  scopes              = [azurerm_application_insights.main.id]
+  description         = "Alert when error rate exceeds threshold"
+  severity            = 2
+  frequency           = "PT5M"
+  window_size         = "PT15M"
+
+  criteria {
+    metric_namespace = "microsoft.insights/components"
+    metric_name      = "exceptions/count"
+    aggregation      = "Count"
+    operator         = "GreaterThan"
+    threshold        = 10
+  }
+
+  action {
+    action_group_id = azurerm_monitor_action_group.main.id
+  }
+
+  tags = local.common_tags
+}
+
+# Alert: Low Availability
+resource "azurerm_monitor_metric_alert" "availability" {
+  name                = "${local.resource_prefix}-low-availability"
+  resource_group_name = azurerm_resource_group.main.name
+  scopes              = [azurerm_application_insights.main.id]
+  description         = "Alert when availability drops below threshold"
+  severity            = 1
+  frequency           = "PT5M"
+  window_size         = "PT15M"
+
+  criteria {
+    metric_namespace = "microsoft.insights/components"
+    metric_name      = "availabilityResults/availabilityPercentage"
+    aggregation      = "Average"
+    operator         = "LessThan"
+    threshold        = 95
+  }
+
+  action {
+    action_group_id = azurerm_monitor_action_group.main.id
+  }
+
+  tags = local.common_tags
+}
+
 # Static Web App
 resource "azurerm_static_web_app" "main" {
   name                = "${local.resource_prefix}-swa"
@@ -197,4 +297,21 @@ output "static_web_app_api_key" {
   description = "API key for Static Web App deployment"
   value       = azurerm_static_web_app.main.api_key
   sensitive   = true
+}
+
+output "application_insights_instrumentation_key" {
+  description = "Application Insights instrumentation key"
+  value       = azurerm_application_insights.main.instrumentation_key
+  sensitive   = true
+}
+
+output "application_insights_connection_string" {
+  description = "Application Insights connection string"
+  value       = azurerm_application_insights.main.connection_string
+  sensitive   = true
+}
+
+output "log_analytics_workspace_id" {
+  description = "Log Analytics Workspace ID"
+  value       = azurerm_log_analytics_workspace.main.id
 }
