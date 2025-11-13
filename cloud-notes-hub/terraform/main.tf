@@ -8,10 +8,12 @@ terraform {
     }
   }
 
-  backend "azurerm" {
-    # Backend configuration should be provided via backend config file
-    # or command line parameters during terraform init
-  }
+  # Commented out for initial setup - using local state
+  # Uncomment and configure after first deployment if remote state is needed
+  # backend "azurerm" {
+  #   # Backend configuration should be provided via backend config file
+  #   # or command line parameters during terraform init
+  # }
 }
 
 provider "azurerm" {
@@ -130,7 +132,7 @@ resource "azurerm_key_vault_secret" "supabase_service_role_key" {
 
 # Storage Account for logs and static content
 resource "azurerm_storage_account" "main" {
-  name                     = "${var.project_name}${var.environment}st"
+  name                     = "cloudnoteshubprodst"
   resource_group_name      = azurerm_resource_group.main.name
   location                 = azurerm_resource_group.main.location
   account_tier             = "Standard"
@@ -161,19 +163,9 @@ resource "azurerm_static_web_app" "main" {
   tags = local.common_tags
 }
 
-# Add access policy for Static Web App to Key Vault
-resource "azurerm_key_vault_access_policy" "static_web_app" {
-  key_vault_id = azurerm_key_vault.main.id
-  tenant_id    = data.azurerm_client_config.current.tenant_id
-  object_id    = azurerm_static_web_app.main.identity[0].principal_id
-
-  secret_permissions = [
-    "Get",
-    "List"
-  ]
-
-  depends_on = [azurerm_static_web_app.main]
-}
+# Note: Key Vault access for Static Web App is not configured because
+# the Free tier doesn't support managed identities. Environment variables
+# will be configured directly in the Static Web App settings via Azure DevOps pipeline.
 
 # Outputs
 output "resource_group_name" {
