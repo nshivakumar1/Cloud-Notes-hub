@@ -180,6 +180,7 @@ stages:
                         --registry-username cloudnoteshubprodacr \
                         --registry-password $(az acr credential show --name cloudnoteshubprodacr --query "passwords[0].value" -o tsv) \
                         --dns-name-label cloudnoteshubprodapp \
+                        --os-type Linux \
                         --ports 3000 \
                         --cpu 1 \
                         --memory 1.5 \
@@ -210,6 +211,7 @@ stages:
                           --name cloud-notes-hub-prod-semaphore \
                           --image semaphoreui/semaphore:latest \
                           --dns-name-label cloudnoteshubprodsemaphore \
+                          --os-type Linux \
                           --ports 3000 \
                           --cpu 0.5 \
                           --memory 1 \
