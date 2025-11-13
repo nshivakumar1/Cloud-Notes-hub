@@ -165,6 +165,7 @@ stages:
                     azure_static_web_apps_api_token: '$(staticWebAppApiToken)'
                     workingDirectory: '$(System.ArtifactsDirectory)/drop'
                   env:
+                    NODE_VERSION: '20'
                     NEXT_PUBLIC_SUPABASE_URL: $(supabase-url)
                     NEXT_PUBLIC_SUPABASE_ANON_KEY: $(supabase-anon-key)
 
