@@ -18,6 +18,32 @@ export default function AdminPage() {
   const supabase = createClient()
   const router = useRouter()
 
+  const fetchNotes = async () => {
+    const { data } = await supabase
+      .from('notes')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (data) {
+      setNotes(data)
+    }
+  }
+
+  const fetchProfiles = async () => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (data) {
+      setProfiles(data)
+    }
+  }
+
+  const fetchData = async () => {
+    await Promise.all([fetchNotes(), fetchProfiles()])
+  }
+
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession()
@@ -80,33 +106,7 @@ export default function AdminPage() {
       supabase.removeChannel(notesChannel)
       supabase.removeChannel(profilesChannel)
     }
-  }, [supabase, router])
-
-  const fetchData = async () => {
-    await Promise.all([fetchNotes(), fetchProfiles()])
-  }
-
-  const fetchNotes = async () => {
-    const { data } = await supabase
-      .from('notes')
-      .select('*')
-      .order('created_at', { ascending: false })
-
-    if (data) {
-      setNotes(data)
-    }
-  }
-
-  const fetchProfiles = async () => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .order('created_at', { ascending: false })
-
-    if (data) {
-      setProfiles(data)
-    }
-  }
+  }, [supabase, router, fetchData, fetchProfiles])
 
   const deleteNote = async (id: string) => {
     if (!confirm('Are you sure you want to delete this note?')) return

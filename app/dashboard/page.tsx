@@ -17,6 +17,17 @@ export default function DashboardPage() {
   const supabase = createClient()
   const router = useRouter()
 
+  const fetchNotes = async () => {
+    const { data } = await supabase
+      .from('notes')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (data) {
+      setNotes(data)
+    }
+  }
+
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession()
@@ -60,18 +71,7 @@ export default function DashboardPage() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [supabase, router])
-
-  const fetchNotes = async () => {
-    const { data } = await supabase
-      .from('notes')
-      .select('*')
-      .order('created_at', { ascending: false })
-
-    if (data) {
-      setNotes(data)
-    }
-  }
+  }, [supabase, router, fetchNotes])
 
   const createNote = async (title: string, content: string, isPublic: boolean) => {
     const { data: { session } } = await supabase.auth.getSession()
