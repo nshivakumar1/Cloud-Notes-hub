@@ -252,20 +252,100 @@ resource "azurerm_monitor_metric_alert" "availability" {
   tags = local.common_tags
 }
 
-# Static Web App
-resource "azurerm_static_web_app" "main" {
-  name                = "${local.resource_prefix}-swa"
+# Azure Container Registry for Docker images
+resource "azurerm_container_registry" "main" {
+  name                = "${replace(local.resource_prefix, "-", "")}acr"
   resource_group_name = azurerm_resource_group.main.name
-  location            = "East US 2" # Static Web Apps have limited region availability
-  sku_tier            = "Free"
-  sku_size            = "Free"
+  location            = azurerm_resource_group.main.location
+  sku                 = "Basic"
+  admin_enabled       = true
 
   tags = local.common_tags
 }
 
-# Note: Key Vault access for Static Web App is not configured because
-# the Free tier doesn't support managed identities. Environment variables
-# will be configured directly in the Static Web App settings via Azure DevOps pipeline.
+# App Service Plan (F1 Free tier)
+resource "azurerm_service_plan" "main" {
+  name                = "${local.resource_prefix}-asp"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+  os_type             = "Linux"
+  sku_name            = "F1" # Free tier
+
+  tags = local.common_tags
+}
+
+# Web App for Containers
+resource "azurerm_linux_web_app" "main" {
+  name                = "${local.resource_prefix}-webapp"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+  service_plan_id     = azurerm_service_plan.main.id
+
+  site_config {
+    always_on = false # F1 tier doesn't support always_on
+
+    application_stack {
+      docker_registry_url      = "https://${azurerm_container_registry.main.login_server}"
+      docker_registry_username = azurerm_container_registry.main.admin_username
+      docker_registry_password = azurerm_container_registry.main.admin_password
+      docker_image_name        = "cloud-notes-hub:latest"
+    }
+  }
+
+  app_settings = {
+    "WEBSITES_ENABLE_APP_SERVICE_STORAGE" = "false"
+    "DOCKER_REGISTRY_SERVER_URL"          = "https://${azurerm_container_registry.main.login_server}"
+    "DOCKER_REGISTRY_SERVER_USERNAME"     = azurerm_container_registry.main.admin_username
+    "DOCKER_REGISTRY_SERVER_PASSWORD"     = azurerm_container_registry.main.admin_password
+    "NEXT_PUBLIC_SUPABASE_URL"            = var.supabase_url
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY"       = var.supabase_anon_key
+    "APPLICATIONINSIGHTS_CONNECTION_STRING" = azurerm_application_insights.main.connection_string
+  }
+
+  identity {
+    type = "SystemAssigned"
+  }
+
+  tags = local.common_tags
+}
+
+# Azure Container Instance for Ansible Semaphore
+resource "azurerm_container_group" "semaphore" {
+  name                = "${local.resource_prefix}-semaphore"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+  os_type             = "Linux"
+  dns_name_label      = "${replace(local.resource_prefix, "-", "")}semaphore"
+  ip_address_type     = "Public"
+
+  container {
+    name   = "semaphore"
+    image  = "semaphoreui/semaphore:latest"
+    cpu    = "0.5"
+    memory = "1.0"
+
+    ports {
+      port     = 3000
+      protocol = "TCP"
+    }
+
+    environment_variables = {
+      "SEMAPHORE_DB_DIALECT" = "bolt"
+      "SEMAPHORE_ADMIN"      = "admin"
+      "SEMAPHORE_ADMIN_PASSWORD" = "changeme"
+      "SEMAPHORE_ADMIN_NAME" = "Administrator"
+      "SEMAPHORE_ADMIN_EMAIL" = var.alert_email
+    }
+
+    volume {
+      name       = "semaphore-data"
+      mount_path = "/etc/semaphore"
+      empty_dir  = true
+    }
+  }
+
+  tags = local.common_tags
+}
 
 # Outputs
 output "resource_group_name" {
@@ -283,20 +363,41 @@ output "storage_account_name" {
   value       = azurerm_storage_account.main.name
 }
 
-output "static_web_app_name" {
-  description = "Name of the Static Web App"
-  value       = azurerm_static_web_app.main.name
+output "container_registry_name" {
+  description = "Name of the Container Registry"
+  value       = azurerm_container_registry.main.name
 }
 
-output "static_web_app_url" {
-  description = "Default hostname of the Static Web App"
-  value       = azurerm_static_web_app.main.default_host_name
+output "container_registry_login_server" {
+  description = "Container Registry login server"
+  value       = azurerm_container_registry.main.login_server
 }
 
-output "static_web_app_api_key" {
-  description = "API key for Static Web App deployment"
-  value       = azurerm_static_web_app.main.api_key
+output "container_registry_admin_username" {
+  description = "Container Registry admin username"
+  value       = azurerm_container_registry.main.admin_username
   sensitive   = true
+}
+
+output "container_registry_admin_password" {
+  description = "Container Registry admin password"
+  value       = azurerm_container_registry.main.admin_password
+  sensitive   = true
+}
+
+output "web_app_name" {
+  description = "Name of the Web App"
+  value       = azurerm_linux_web_app.main.name
+}
+
+output "web_app_url" {
+  description = "Default hostname of the Web App"
+  value       = "https://${azurerm_linux_web_app.main.default_hostname}"
+}
+
+output "semaphore_url" {
+  description = "URL for Ansible Semaphore portal"
+  value       = "http://${azurerm_container_group.semaphore.fqdn}:3000"
 }
 
 output "application_insights_instrumentation_key" {

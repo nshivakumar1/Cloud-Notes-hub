@@ -96,13 +96,13 @@ stages:
               parallel: true
               parallelCount: 8
 
-  - stage: DockerBuild
-    displayName: 'Build and Push Docker Image'
+  - stage: DockerBuildPush
+    displayName: 'Build and Push Docker Image to ACR'
     dependsOn: Build
     condition: succeeded()
     jobs:
-      - job: BuildDockerImage
-        displayName: 'Build Docker Image'
+      - job: BuildPushDockerImage
+        displayName: 'Build and Push to Azure Container Registry'
         steps:
           - task: AzureKeyVault@2
             displayName: 'Get Secrets from Key Vault'
@@ -113,62 +113,44 @@ stages:
               RunAsPreJob: false
 
           - task: Docker@2
-            displayName: 'Build Docker Image'
+            displayName: 'Login to Azure Container Registry'
             inputs:
-              command: 'build'
+              command: 'login'
+              containerRegistry: 'ACR-ServiceConnection'
+
+          - task: Docker@2
+            displayName: 'Build and Push Docker Image'
+            inputs:
+              command: 'buildAndPush'
+              repository: 'cloud-notes-hub'
+              containerRegistry: 'ACR-ServiceConnection'
               Dockerfile: '$(workingDirectory)/Dockerfile'
               buildContext: '$(workingDirectory)'
-              repository: 'cloud-notes-hub'
               tags: |
                 $(Build.BuildId)
                 latest
               arguments: |
-                --no-cache
                 --build-arg NEXT_PUBLIC_SUPABASE_URL=$(supabase-url)
                 --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=$(supabase-anon-key)
 
-          - script: |
-              docker save cloud-notes-hub:latest | gzip > $(Build.ArtifactStagingDirectory)/docker-image.tar.gz
-            displayName: 'Save Docker Image'
-
-          - task: PublishPipelineArtifact@1
-            displayName: 'Publish Docker Image Artifact'
-            inputs:
-              targetPath: '$(Build.ArtifactStagingDirectory)/docker-image.tar.gz'
-              artifact: 'docker-image'
-              publishLocation: 'pipeline'
-
   - stage: Deploy
-    displayName: 'Deploy to Azure'
-    dependsOn: Build
+    displayName: 'Deploy to Azure Web App'
+    dependsOn: DockerBuildPush
     condition: succeeded()
     jobs:
-      - deployment: DeployStaticWebApp
-        displayName: 'Deploy to Azure Static Web Apps'
+      - deployment: DeployWebApp
+        displayName: 'Deploy to Azure Web App for Containers'
         environment: 'production'
         strategy:
           runOnce:
             deploy:
               steps:
-                - task: DownloadPipelineArtifact@2
-                  displayName: 'Download Build Artifacts'
+                - task: AzureWebAppContainer@1
+                  displayName: 'Deploy Docker Container to Web App'
                   inputs:
-                    buildType: 'current'
-                    artifactName: 'drop'
-                    targetPath: '$(System.ArtifactsDirectory)/drop'
-
-                - task: AzureStaticWebApp@0
-                  displayName: 'Deploy to Static Web App'
-                  inputs:
-                    app_location: '/'
-                    output_location: '.next'
-                    skip_app_build: true
-                    azure_static_web_apps_api_token: '$(staticWebAppApiToken)'
-                    workingDirectory: '$(System.ArtifactsDirectory)/drop'
-                  env:
-                    NODE_VERSION: '20'
-                    NEXT_PUBLIC_SUPABASE_URL: $(supabase-url)
-                    NEXT_PUBLIC_SUPABASE_ANON_KEY: $(supabase-anon-key)
+                    azureSubscription: 'Azure subscription 1 (95c7aa64-5227-422a-afbd-e8eb5cb30122)'
+                    appName: 'cloud-notes-hub-prod-webapp'
+                    containers: '$(containerRegistry)/cloud-notes-hub:$(Build.BuildId)'
 
   - stage: LogDeployment
     displayName: 'Log Deployment'
