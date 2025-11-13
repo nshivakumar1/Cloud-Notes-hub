@@ -119,9 +119,9 @@ stages:
               containerRegistry: 'ACR-ServiceConnection'
 
           - task: Docker@2
-            displayName: 'Build and Push Docker Image'
+            displayName: 'Build Docker Image'
             inputs:
-              command: 'buildAndPush'
+              command: 'build'
               repository: 'cloud-notes-hub'
               containerRegistry: 'ACR-ServiceConnection'
               Dockerfile: '$(workingDirectory)/Dockerfile'
@@ -129,9 +129,17 @@ stages:
               tags: |
                 $(Build.BuildId)
                 latest
-              arguments: |
-                --build-arg NEXT_PUBLIC_SUPABASE_URL=$(supabase-url)
-                --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=$(supabase-anon-key)
+              arguments: '--build-arg NEXT_PUBLIC_SUPABASE_URL=$(supabase-url) --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=$(supabase-anon-key)'
+
+          - task: Docker@2
+            displayName: 'Push Docker Image'
+            inputs:
+              command: 'push'
+              repository: 'cloud-notes-hub'
+              containerRegistry: 'ACR-ServiceConnection'
+              tags: |
+                $(Build.BuildId)
+                latest
 
   - stage: Deploy
     displayName: 'Deploy to Azure Container Instances'
