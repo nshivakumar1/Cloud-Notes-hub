@@ -160,12 +160,14 @@ stages:
                   displayName: 'Deploy to Static Web App'
                   inputs:
                     app_location: '/'
+                    output_location: '.next'
                     skip_app_build: true
                     azure_static_web_apps_api_token: '$(staticWebAppApiToken)'
                     workingDirectory: '$(System.ArtifactsDirectory)/drop'
                   env:
                     NEXT_PUBLIC_SUPABASE_URL: $(supabase-url)
                     NEXT_PUBLIC_SUPABASE_ANON_KEY: $(supabase-anon-key)
+                    NODE_VERSION: '20'
 
   - stage: LogDeployment
     displayName: 'Log Deployment'
