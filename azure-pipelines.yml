@@ -11,7 +11,7 @@ trigger:
       - docs/*
 
 pool:
-  vmImage: 'ubuntu-latest'
+  name: 'Default'  # Self-hosted agent pool
 
 variables:
   - group: cloud-notes-hub-secrets # Variable group containing Key Vault secrets
