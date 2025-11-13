@@ -26,7 +26,7 @@ variables:
     value: 'cloudnoteshubprodst'
   # Service connection name - UPDATE THIS with your actual service connection name
   - name: azureSubscription
-    value: 'Azure subscription 1'  # Change this to match your service connection name
+    value: 'Azure subscription 1 (95c7aa64-5227-422a-afbd-e8eb5cb30122)'  # Change this to match your service connection name
 
 stages:
   - stage: Build
