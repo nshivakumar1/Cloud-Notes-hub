@@ -122,6 +122,7 @@ stages:
                 $(Build.BuildId)
                 latest
               arguments: |
+                --no-cache
                 --build-arg NEXT_PUBLIC_SUPABASE_URL=$(supabase-url)
                 --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=$(supabase-anon-key)
 
