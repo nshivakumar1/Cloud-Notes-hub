@@ -96,6 +96,46 @@ stages:
               parallel: true
               parallelCount: 8
 
+  - stage: DockerBuild
+    displayName: 'Build and Push Docker Image'
+    dependsOn: Build
+    condition: succeeded()
+    jobs:
+      - job: BuildDockerImage
+        displayName: 'Build Docker Image'
+        steps:
+          - task: AzureKeyVault@2
+            displayName: 'Get Secrets from Key Vault'
+            inputs:
+              azureSubscription: 'Azure subscription 1 (95c7aa64-5227-422a-afbd-e8eb5cb30122)'
+              KeyVaultName: 'cloud-notes-hubprodkv'
+              SecretsFilter: 'supabase-url,supabase-anon-key'
+              RunAsPreJob: false
+
+          - task: Docker@2
+            displayName: 'Build Docker Image'
+            inputs:
+              command: 'build'
+              Dockerfile: '$(workingDirectory)/Dockerfile'
+              buildContext: '$(workingDirectory)'
+              tags: |
+                $(Build.BuildId)
+                latest
+              arguments: |
+                --build-arg NEXT_PUBLIC_SUPABASE_URL=$(supabase-url)
+                --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=$(supabase-anon-key)
+
+          - script: |
+              docker save cloud-notes-hub:latest | gzip > $(Build.ArtifactStagingDirectory)/docker-image.tar.gz
+            displayName: 'Save Docker Image'
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish Docker Image Artifact'
+            inputs:
+              targetPath: '$(Build.ArtifactStagingDirectory)/docker-image.tar.gz'
+              artifact: 'docker-image'
+              publishLocation: 'pipeline'
+
   - stage: Deploy
     displayName: 'Deploy to Azure'
     dependsOn: Build

@@ -1,0 +1,33 @@
+---
+# Common variables for all hosts
+
+# Application Configuration
+app_name: "cloud-notes-hub"
+app_version: "latest"
+app_port: 3000
+app_user: "appuser"
+app_group: "appgroup"
+
+# Docker Configuration
+docker_compose_version: "2.23.0"
+docker_image_name: "{{ docker_registry }}/{{ app_name }}"
+docker_container_name: "{{ app_name }}-app"
+
+# Environment Variables (will be fetched from Azure Key Vault)
+supabase_url: "{{ lookup('env', 'SUPABASE_URL') }}"
+supabase_anon_key: "{{ lookup('env', 'SUPABASE_ANON_KEY') }}"
+
+# Monitoring
+enable_monitoring: true
+app_insights_key: "{{ lookup('env', 'APP_INSIGHTS_KEY') }}"
+
+# Nginx Configuration
+nginx_server_name: "cloudnoteshub.com"
+nginx_ssl_enabled: true
+nginx_cert_path: "/etc/ssl/certs/cloudnoteshub.crt"
+nginx_key_path: "/etc/ssl/private/cloudnoteshub.key"
+
+# Backup Configuration
+backup_enabled: true
+backup_retention_days: 7
+backup_directory: "/var/backups/{{ app_name }}"

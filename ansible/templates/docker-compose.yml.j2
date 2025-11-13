@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  app:
+    image: {{ docker_image_name }}:{{ app_version }}
+    container_name: {{ docker_container_name }}
+    ports:
+      - "{{ app_port }}:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_SUPABASE_URL={{ supabase_url }}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY={{ supabase_anon_key }}
+      {% if enable_monitoring %}
+      - APP_INSIGHTS_KEY={{ app_insights_key }}
+      {% endif %}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

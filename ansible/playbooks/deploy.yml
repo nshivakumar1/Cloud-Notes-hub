@@ -1,0 +1,94 @@
+---
+- name: Deploy Cloud Notes Hub Application
+  hosts: "{{ target | default('production') }}"
+  become: yes
+
+  pre_tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      when: ansible_os_family == "Debian"
+
+  roles:
+    - docker
+    - nginx
+    - monitoring
+
+  tasks:
+    - name: Create application user
+      user:
+        name: "{{ app_user }}"
+        group: "{{ app_group }}"
+        system: yes
+        create_home: no
+        shell: /bin/false
+
+    - name: Create application directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: '0755'
+      loop:
+        - "/opt/{{ app_name }}"
+        - "/var/log/{{ app_name }}"
+        - "{{ backup_directory }}"
+
+    - name: Copy Docker Compose file
+      template:
+        src: ../templates/docker-compose.yml.j2
+        dest: "/opt/{{ app_name }}/docker-compose.yml"
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: '0644'
+      notify: Restart application
+
+    - name: Copy environment file
+      template:
+        src: ../templates/.env.j2
+        dest: "/opt/{{ app_name }}/.env"
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: '0600'
+      notify: Restart application
+
+    - name: Pull Docker image
+      docker_image:
+        name: "{{ docker_image_name }}:{{ app_version }}"
+        source: pull
+        force_source: yes
+
+    - name: Start application with Docker Compose
+      docker_compose:
+        project_src: "/opt/{{ app_name }}"
+        state: present
+        pull: yes
+      environment:
+        NEXT_PUBLIC_SUPABASE_URL: "{{ supabase_url }}"
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: "{{ supabase_anon_key }}"
+
+    - name: Wait for application to be healthy
+      uri:
+        url: "http://localhost:{{ app_port }}/api/health"
+        status_code: 200
+      register: result
+      until: result.status == 200
+      retries: 30
+      delay: 10
+
+  handlers:
+    - name: Restart application
+      docker_compose:
+        project_src: "/opt/{{ app_name }}"
+        restarted: yes
+
+  post_tasks:
+    - name: Display deployment summary
+      debug:
+        msg: |
+          Deployment completed successfully!
+          Application: {{ app_name }}
+          Version: {{ app_version }}
+          URL: http://{{ ansible_host }}:{{ app_port }}

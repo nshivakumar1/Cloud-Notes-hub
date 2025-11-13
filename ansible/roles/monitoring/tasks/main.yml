@@ -1,0 +1,61 @@
+---
+- name: Install monitoring tools
+  apt:
+    name:
+      - htop
+      - iotop
+      - net-tools
+      - sysstat
+    state: present
+
+- name: Create monitoring script
+  copy:
+    content: |
+      #!/bin/bash
+      # Simple monitoring script
+      echo "=== System Health Check ==="
+      echo "Uptime: $(uptime)"
+      echo "Disk Usage:"
+      df -h
+      echo "Memory Usage:"
+      free -h
+      echo "Docker Containers:"
+      docker ps
+      echo "Application Logs (last 20 lines):"
+      docker logs {{ docker_container_name }} --tail 20
+    dest: /usr/local/bin/health-check
+    mode: '0755'
+
+- name: Setup log rotation for application
+  copy:
+    content: |
+      /var/log/{{ app_name }}/*.log {
+          daily
+          missingok
+          rotate 14
+          compress
+          delaycompress
+          notifempty
+          create 0640 {{ app_user }} {{ app_group }}
+          sharedscripts
+          postrotate
+              docker kill -s USR1 {{ docker_container_name }}
+          endscript
+      }
+    dest: "/etc/logrotate.d/{{ app_name }}"
+    mode: '0644'
+
+- name: Create backup script
+  template:
+    src: backup.sh.j2
+    dest: /usr/local/bin/backup-app
+    mode: '0755'
+  when: backup_enabled
+
+- name: Schedule daily backups
+  cron:
+    name: "Backup {{ app_name }}"
+    hour: "2"
+    minute: "0"
+    job: "/usr/local/bin/backup-app >> /var/log/{{ app_name }}/backup.log 2>&1"
+  when: backup_enabled
