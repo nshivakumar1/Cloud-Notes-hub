@@ -74,12 +74,27 @@ stages:
               customCommand: 'run build'
               workingDir: $(workingDirectory)
 
-          - task: PublishBuildArtifacts@1
+          # Create artifact staging directory with only necessary files
+          - script: |
+              mkdir -p $(Build.ArtifactStagingDirectory)/app
+              # Copy only necessary files, excluding node_modules
+              rsync -av --exclude='node_modules' \
+                       --exclude='.git' \
+                       --exclude='.next/cache' \
+                       --exclude='coverage' \
+                       --exclude='.env*' \
+                       $(workingDirectory)/ $(Build.ArtifactStagingDirectory)/app/
+            displayName: 'Prepare Artifact Files'
+            workingDirectory: $(workingDirectory)
+
+          - task: PublishPipelineArtifact@1
             displayName: 'Publish Build Artifacts'
             inputs:
-              PathtoPublish: '$(workingDirectory)'
-              ArtifactName: 'drop'
-              publishLocation: 'Container'
+              targetPath: '$(Build.ArtifactStagingDirectory)/app'
+              artifact: 'drop'
+              publishLocation: 'pipeline'
+              parallel: true
+              parallelCount: 8
 
   - stage: Deploy
     displayName: 'Deploy to Azure'
@@ -93,13 +108,12 @@ stages:
           runOnce:
             deploy:
               steps:
-                - task: DownloadBuildArtifacts@1
+                - task: DownloadPipelineArtifact@2
                   displayName: 'Download Build Artifacts'
                   inputs:
                     buildType: 'current'
-                    downloadType: 'single'
                     artifactName: 'drop'
-                    downloadPath: '$(System.ArtifactsDirectory)'
+                    targetPath: '$(System.ArtifactsDirectory)/drop'
 
                 - task: AzureStaticWebApp@0
                   displayName: 'Deploy to Static Web App'
