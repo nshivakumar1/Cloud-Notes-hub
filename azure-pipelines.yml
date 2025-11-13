@@ -161,7 +161,8 @@ stages:
                   displayName: 'Deploy to Static Web App'
                   inputs:
                     app_location: '/'
-                    skip_app_build: false
+                    output_location: '.next'
+                    skip_app_build: true
                     azure_static_web_apps_api_token: '$(staticWebAppApiToken)'
                     workingDirectory: '$(System.ArtifactsDirectory)/drop'
                   env:
