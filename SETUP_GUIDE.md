@@ -261,11 +261,16 @@ terraform output static_web_app_api_key
 3. Click **New service connection**
 4. Select **Azure Resource Manager**
 5. Select **Service principal (automatic)**
-6. Choose your subscription
-7. Resource group: Select the one created by Terraform
-8. Name it: `azure-cloud-notes-hub`
-9. Check "Grant access permission to all pipelines"
-10. Click **Save**
+6. Choose your subscription (e.g., "Azure subscription 1")
+7. **Scope level**: Choose **Subscription** (recommended) or wait for Resource group dropdown
+8. If using Resource Group scope: Select `cloud-notes-hub-prod-rg`
+9. Name it exactly as: `Azure subscription 1` (or update the pipeline variable to match your chosen name)
+10. Check "Grant access permission to all pipelines"
+11. Click **Save**
+
+**Important:** The service connection name must match the `azureSubscription` variable in [azure-pipelines.yml](azure-pipelines.yml:28).
+- Default is set to: `Azure subscription 1`
+- If you use a different name, update line 29 in azure-pipelines.yml
 
 ### Step 4: Create Variable Group
 
@@ -276,10 +281,18 @@ terraform output static_web_app_api_key
 
 | Variable Name | Value | Secret? |
 |--------------|-------|---------|
-| azureSubscription | azure-cloud-notes-hub | No |
-| keyVaultName | (from Terraform output) | No |
-| storageAccountName | (from Terraform output) | No |
-| staticWebAppApiToken | (from Terraform output) | Yes |
+| staticWebAppApiToken | (from Terraform output - see below) | Yes |
+
+**Note:** The following variables are now defined directly in `azure-pipelines.yml`:
+- `azureSubscription` - Set to your service connection name (default: "Azure subscription 1")
+- `keyVaultName` - Set to `cloud-notes-hubprodkv`
+- `storageAccountName` - Set to `cloudnoteshubprodst`
+
+**To get the Static Web App API Token:**
+```bash
+cd terraform
+terraform output -raw static_web_app_api_key
+```
 
 5. Click **Save**
 

@@ -19,6 +19,14 @@ variables:
     value: '20.x'
   - name: workingDirectory
     value: '$(System.DefaultWorkingDirectory)'
+  # Azure resource names from Terraform
+  - name: keyVaultName
+    value: 'cloud-notes-hubprodkv'
+  - name: storageAccountName
+    value: 'cloudnoteshubprodst'
+  # Service connection name - UPDATE THIS with your actual service connection name
+  - name: azureSubscription
+    value: 'Azure subscription 1'  # Change this to match your service connection name
 
 stages:
   - stage: Build
