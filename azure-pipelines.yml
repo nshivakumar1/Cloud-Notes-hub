@@ -124,20 +124,17 @@ stages:
                 ACR_PASSWORD=$(az acr credential show --name $ACR_NAME --query "passwords[0].value" -o tsv)
                 echo $ACR_PASSWORD | docker login $ACR_NAME.azurecr.io -u $ACR_NAME --password-stdin
 
-                # Build the image with build arguments
-                docker build \
+                # Build the image for AMD64 platform (required for Azure Container Instances)
+                docker buildx build --platform linux/amd64 \
                   --build-arg NEXT_PUBLIC_SUPABASE_URL='$(supabase-url)' \
                   --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY='$(supabase-anon-key)' \
                   -t $ACR_NAME.azurecr.io/cloud-notes-hub:$(Build.BuildId) \
                   -t $ACR_NAME.azurecr.io/cloud-notes-hub:latest \
                   -f $(workingDirectory)/Dockerfile \
+                  --push \
                   $(workingDirectory)
 
-                # Push both tags
-                docker push $ACR_NAME.azurecr.io/cloud-notes-hub:$(Build.BuildId)
-                docker push $ACR_NAME.azurecr.io/cloud-notes-hub:latest
-
-                echo "Successfully built and pushed Docker images"
+                echo "Successfully built and pushed Docker images for AMD64"
 
   - stage: Deploy
     displayName: 'Deploy to Azure Container Instances'
