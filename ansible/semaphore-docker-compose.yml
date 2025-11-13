@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database for Semaphore
+  postgres:
+    image: postgres:15-alpine
+    container_name: semaphore-postgres
+    environment:
+      POSTGRES_USER: semaphore
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-semaphore_password_change_me}
+      POSTGRES_DB: semaphore
+    volumes:
+      - semaphore-postgres:/var/lib/postgresql/data
+    networks:
+      - semaphore-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U semaphore"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Ansible Semaphore web UI
+  semaphore:
+    image: semaphoreui/semaphore:latest
+    container_name: semaphore-ui
+    ports:
+      - "3001:3000"  # Expose on port 3001 to avoid conflict with main app
+    environment:
+      SEMAPHORE_DB_USER: semaphore
+      SEMAPHORE_DB_PASS: ${POSTGRES_PASSWORD:-semaphore_password_change_me}
+      SEMAPHORE_DB_HOST: postgres
+      SEMAPHORE_DB_PORT: 5432
+      SEMAPHORE_DB_DIALECT: postgres
+      SEMAPHORE_DB: semaphore
+      SEMAPHORE_PLAYBOOK_PATH: /tmp/semaphore/
+      SEMAPHORE_ADMIN_PASSWORD: ${SEMAPHORE_ADMIN_PASSWORD:-admin}
+      SEMAPHORE_ADMIN_NAME: admin
+      SEMAPHORE_ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@localhost}
+      SEMAPHORE_ADMIN: admin
+      SEMAPHORE_ACCESS_KEY_ENCRYPTION: ${ACCESS_KEY_ENCRYPTION:-your-secret-key-change-me}
+      TZ: UTC
+    volumes:
+      - semaphore-data:/tmp/semaphore
+      - ../:/ansible:ro  # Mount ansible directory as read-only
+      - ~/.ssh:/root/.ssh:ro  # Mount SSH keys for server access
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - semaphore-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  semaphore-postgres:
+    driver: local
+  semaphore-data:
+    driver: local
+
+networks:
+  semaphore-network:
+    driver: bridge

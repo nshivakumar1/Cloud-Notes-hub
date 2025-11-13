@@ -5,6 +5,7 @@ This guide covers containerization with Docker and automated deployment with Ans
 ## Table of Contents
 - [Docker Setup](#docker-setup)
 - [Ansible Automation](#ansible-automation)
+- [Ansible Web Portal (Semaphore)](#ansible-web-portal-semaphore)
 - [CI/CD Pipeline](#cicd-pipeline)
 - [Deployment Workflows](#deployment-workflows)
 - [Troubleshooting](#troubleshooting)
@@ -224,6 +225,66 @@ ansible all -i ansible/inventory/hosts.yml -a "docker-compose -f /opt/cloud-note
 - Sets up log rotation
 - Creates health check scripts
 - Configures automated backups
+
+---
+
+## Ansible Web Portal (Semaphore)
+
+### What is Semaphore?
+
+Ansible Semaphore is a modern web UI for Ansible that provides visual playbook execution, real-time monitoring, and deployment history.
+
+**Features:**
+- 🎯 Visual playbook execution from web browser
+- 📊 Real-time deployment monitoring
+- 📜 Complete execution history with logs
+- 🔐 Role-based access control
+- 📅 Scheduled jobs and automation
+- 🔔 Notifications and alerts
+
+### Quick Start
+
+```bash
+cd ansible
+./start-semaphore.sh
+```
+
+This will:
+1. Generate secure passwords
+2. Start PostgreSQL and Semaphore containers
+3. Make UI available at http://localhost:3001
+
+**Default Login:**
+- Username: `admin`
+- Password: Check `.env.semaphore` file
+
+### Features
+
+**Dashboard:**
+- View all recent deployments
+- Monitor active tasks
+- Quick access to common operations
+- Statistics and analytics
+
+**Task Management:**
+- Create deployment templates
+- Run playbooks with one click
+- Monitor progress in real-time
+- Download execution logs
+
+**Scheduling:**
+- Schedule recurring deployments
+- Automated maintenance tasks
+- Cron-based execution
+
+**Team Collaboration:**
+- Multiple user accounts
+- Role-based permissions
+- Audit trail of all actions
+
+### Documentation
+
+For complete setup and usage guide, see **[ANSIBLE_PORTAL.md](ANSIBLE_PORTAL.md)**
 
 ---
 
